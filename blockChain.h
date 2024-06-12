@@ -37,7 +37,7 @@ private:
     int miner_thread_id;
 
 public:
-    blockChain(int difficulty);
+     blockChain(int difficulty);
     ~blockChain() {}
     vector<BLOCK_T> getBlocks() { return blocks; }
     int calculateHash(const BLOCK_T& block);
@@ -48,6 +48,8 @@ public:
     void notifyMiners();
     bool isBlockValid(const BLOCK_T& block);
     static void* testMinerThread(void* args);
+    pthread_mutex_t& getMutex();
+
 };
 
 #endif

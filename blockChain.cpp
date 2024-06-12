@@ -1,11 +1,12 @@
 #include "blockChain.h"
+#include "Server.h"
 
 blockChain::blockChain(int difficulty)
 {
     BLOCK_T block;
     block.height = 0;
     block.timeStamp = time(nullptr);
-    block.hash = 0;
+    block.hash = calculateHash(block);
     block.prev_hash = 0;
     block.difficulty = difficulty;
     block.nonce = 0;
@@ -58,12 +59,14 @@ void blockChain::startMining()
         miners.push_back(miner_thread);
     }
 
+    // Wait for miners to finish their work
     for(auto &miner : miners)
     {
         pthread_join(miner, NULL);
     }
 
-    pthread_join(server_thread, NULL);
+    // Signal the server thread to exit
+    pthread_cancel(server_thread);
 }
 
 void* blockChain::minerThread(void* args)
@@ -111,6 +114,7 @@ void* blockChain::serverThread(void* args)
 
         while(block_chain->blocks_queue.empty())
         {
+            // Wait for new blocks to be mined
             pthread_cond_wait(&block_chain->condition_variable, &block_chain->mtx_lock);
         }
 
@@ -182,4 +186,8 @@ void* blockChain::testMinerThread(void* args)
     }
 
     return NULL;
+}
+
+pthread_mutex_t& blockChain::getMutex() {
+        return mtx_lock;
 }
