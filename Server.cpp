@@ -15,6 +15,7 @@ void Server::createBlockChain()
         new_block.difficulty = chain.back().difficulty;
 
         chain.push_back(new_block);
+        cout << chain.size();
 
         pthread_mutex_unlock(&block_chain->getMutex()); 
     }

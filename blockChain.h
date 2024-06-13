@@ -30,6 +30,7 @@ class blockChain
 {
 private:
     vector<BLOCK_T> blocks;
+    BLOCK_T notMinedBlock;
     vector<pthread_t> miners;
     pthread_mutex_t mtx_lock;
     queue<BLOCK_T> blocks_queue;
@@ -43,12 +44,14 @@ public:
     int calculateHash(const BLOCK_T& block);
     bool validationProofOfWork(int hash, int difficulty);
     void startMining();
-    static void* serverThread(void* args);
+    static void* serverThread(void* args); 
     static void* minerThread(void* args);
     void notifyMiners();
     bool isBlockValid(const BLOCK_T& block);
     static void* testMinerThread(void* args);
     pthread_mutex_t& getMutex();
+    BLOCK_T getBlock();
+    void changeNotMindBlock();
 
 };
 
