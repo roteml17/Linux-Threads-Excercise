@@ -2,7 +2,7 @@
 
 int main()
 {
-    blockChain blocks(20);
+    blockChain blocks(10);
     blocks.startMining();
 
     // Create and start the test miner thread

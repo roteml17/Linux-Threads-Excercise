@@ -29,18 +29,18 @@ typedef struct
 class blockChain
 {
 private:
-    vector<BLOCK_T> blocks;
+    BLOCK_T lastBlock;
     BLOCK_T notMinedBlock;
-    vector<pthread_t> miners;
     pthread_mutex_t mtx_lock;
     queue<BLOCK_T> blocks_queue;
     pthread_cond_t condition_variable;
+    pthread_cond_t block_mined_condition; ////
     int miner_thread_id;
+    int current_mining_height; //////
 
 public:
      blockChain(int difficulty);
     ~blockChain() {}
-    vector<BLOCK_T> getBlocks() { return blocks; }
     int calculateHash(const BLOCK_T& block);
     bool validationProofOfWork(int hash, int difficulty);
     void startMining();
@@ -52,7 +52,7 @@ public:
     pthread_mutex_t& getMutex();
     BLOCK_T getBlock();
     void changeNotMindBlock();
-
+    void notifyBlockMined(); ////
 };
 
 #endif

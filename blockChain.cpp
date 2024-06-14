@@ -1,18 +1,19 @@
 #include "blockChain.h"
 #include "Server.h"
 
-blockChain::blockChain(int difficulty)
+blockChain::blockChain(int difficulty): current_mining_height(0)
 {
     notMinedBlock.height = 0;
     notMinedBlock.timeStamp = time(nullptr);
-    notMinedBlock.hash = 0;                  //calc the hash
     notMinedBlock.prev_hash = 0;
     notMinedBlock.difficulty = difficulty;
     notMinedBlock.nonce = 0;
     notMinedBlock.relayed_by = -1;
+    notMinedBlock.hash = notMinedBlock.hash = calculateHash(notMinedBlock);
 
     pthread_mutex_init(&mtx_lock, NULL);
     pthread_cond_init(&condition_variable, NULL);
+    pthread_cond_init(&block_mined_condition, NULL); /////
 }
 
 int blockChain::calculateHash(const BLOCK_T& block)
@@ -40,6 +41,7 @@ bool blockChain::validationProofOfWork(int hash, int difficulty)
 
 void blockChain::startMining()
 {
+    vector<pthread_t> miners;
     pthread_t server_thread;
     pthread_create(&server_thread, NULL, &serverThread, (void*)this);
 
@@ -65,44 +67,55 @@ void* blockChain::minerThread(void* args)
 {
     blockChain* block_chain = static_cast<blockChain*>(args);
     int miner_id = block_chain->miner_thread_id;
-    int temp;
 
-    while(true)
+    while (true)
     {
-        BLOCK_T newBlock;
-        pthread_mutex_lock(&block_chain->mtx_lock); 
-
-        newBlock = block_chain->getBlock();
+        pthread_mutex_lock(&block_chain->mtx_lock);
+        BLOCK_T newBlock = block_chain->getBlock();
         pthread_mutex_unlock(&block_chain->mtx_lock);
 
-        while(true)
+        while (true)
         {
-            if()
+            pthread_mutex_lock(&block_chain->mtx_lock);
+            if (newBlock.height != block_chain->notMinedBlock.height)
             {
-                 newBlock = block_chain->getBlock();
+                pthread_mutex_unlock(&block_chain->mtx_lock);
+                break;
             }
-            while (block_chain->validationProofOfWork(newBlock.hash, newBlock.difficulty))
-            {            
-            pthread_mutex_lock(&block_chain->mtx_lock); 
+            pthread_mutex_unlock(&block_chain->mtx_lock);
+
             newBlock.relayed_by = miner_id; // Assign the thread ID as relayed_by
             newBlock.timeStamp = time(nullptr);
-            temp = block_chain->calculateHash(newBlock);
-            if(block_chain->validationProofOfWork(temp, newBlock.difficulty))
-            {
+            int temp = block_chain->calculateHash(newBlock);
 
-                newBlock.hash = temp;
-                block_chain->blocks_queue.push(newBlock);
-                pthread_cond_signal(&block_chain->condition_variable);
-                //break;
+            if (block_chain->validationProofOfWork(temp, newBlock.difficulty))
+            {
+                pthread_mutex_lock(&block_chain->mtx_lock);
+                if (newBlock.height == block_chain->notMinedBlock.height && newBlock.height == block_chain->current_mining_height) ///////
+                {
+                    newBlock.hash = temp;
+                    block_chain->blocks_queue.push(newBlock);
+                    pthread_cond_signal(&block_chain->condition_variable);
+                    block_chain->notifyBlockMined();
+
+                    cout << "Miner #" << std::dec << miner_id << ": Mined a new block #" << newBlock.height << ", with the hash " << std::showbase << std::hex << newBlock.hash << endl;
+                    cout << "New block attributes: height(" << std::dec << newBlock.height << "), timestamp(" << newBlock.timeStamp
+                         << "), hash(" << std::showbase << std::hex << newBlock.hash << "), prev_hash(" << std::showbase << std::hex << newBlock.prev_hash << "), difficulty ("
+                         << std::dec << newBlock.difficulty << "), nonce (" << newBlock.nonce << ")" << endl;
+
+                    // Wait for notification that a new block has been mined and added
+                    pthread_cond_wait(&block_chain->block_mined_condition, &block_chain->mtx_lock);
+                }
+                pthread_mutex_unlock(&block_chain->mtx_lock);
+                break;
             }
             newBlock.nonce++;
-            pthread_mutex_unlock(&block_chain->mtx_lock);
-            }
         }
     }
 
     return NULL;
 }
+
 
 void* blockChain::serverThread(void* args)
 {
@@ -121,15 +134,9 @@ void* blockChain::serverThread(void* args)
         BLOCK_T newBlock = block_chain->blocks_queue.front();
         block_chain->blocks_queue.pop();
 
-        ////////////////move the prints to the minerthread
-        if(block_chain->isBlockValid(newBlock))
+        if(block_chain->isBlockValid(newBlock)) //line 125
         {
-            block_chain->blocks.push_back(newBlock);
-            
-            cout << "Miner #" << std::dec << newBlock.relayed_by << ": Mined a new block #" << std::dec << newBlock.height << ", with the hash " << std::showbase << std::hex << newBlock.hash << endl;
-            cout << "Server:"  << " New block added by " << std::dec << newBlock.relayed_by << ", attributes: height(" << std::dec << newBlock.height << "), timestamp("<< std::dec << newBlock.timeStamp
-            << "), hash(" <<std::showbase << std::hex << newBlock.hash << "), prev_hash(" << std::showbase << std::hex << newBlock.prev_hash<< ") difficulty (" <<
-            std::dec << newBlock.difficulty << "), nonce (" << std::dec << newBlock.nonce << ")" <<endl;
+            block_chain->lastBlock=newBlock; //line 127
 
             sleep(1);
             block_chain->changeNotMindBlock();
@@ -137,11 +144,13 @@ void* blockChain::serverThread(void* args)
             newBlock = block_chain->notMinedBlock;
             
 
-            block_chain->notifyMiners();
+            block_chain->notifyMiners(); //line 140
         }
         else
         {
-            cout << "Invalid block received" << endl; //add info
+            cout << "Invalid block received by miner #" << std::dec << newBlock.relayed_by << ", height(" << newBlock.height << "), hash(" 
+            << std::showbase << std::hex << newBlock.hash << "), prev_hash(" 
+            << std::showbase << std::hex << newBlock.prev_hash << ")" << endl;        
         }
 
         pthread_mutex_unlock(&block_chain->mtx_lock);
@@ -158,7 +167,7 @@ void blockChain::notifyMiners()
 bool blockChain::isBlockValid(const BLOCK_T& block)
 {
     // Check if the block's prev_hash matches the hash of the previous block
-    if (block.height > 0 && block.prev_hash != blocks[block.height - 1].hash)
+    if (block.height > 0 && block.prev_hash != lastBlock.hash) ////
     {
         return false;
     }
@@ -176,10 +185,10 @@ void* blockChain::testMinerThread(void* args)
         BLOCK_T invalidBlock;
 
         // Create an invalid block (for testing purposes)
-        invalidBlock.height = block_chain->getBlocks().size();
+        invalidBlock.height = block_chain->lastBlock.height + 1;
         invalidBlock.timeStamp = time(nullptr);
-        invalidBlock.prev_hash = block_chain->getBlocks().back().hash;
-        invalidBlock.difficulty = block_chain->getBlocks().back().difficulty;
+        invalidBlock.prev_hash = block_chain->lastBlock.hash;
+        invalidBlock.difficulty = block_chain->lastBlock.difficulty;
         invalidBlock.nonce = 0;
         invalidBlock.relayed_by = 0; // Set relayed_by to a fixed value for identification
 
@@ -209,8 +218,15 @@ BLOCK_T blockChain::getBlock()
 void blockChain::changeNotMindBlock()
 {
     notMinedBlock.nonce = 0;
-    notMinedBlock.height = blocks.size();
+    notMinedBlock.height = lastBlock.height + 1;
     notMinedBlock.timeStamp = time(nullptr);
-    notMinedBlock.prev_hash = blocks.back().hash; //last block on the chain
-    notMinedBlock.difficulty = blocks.back().difficulty;
+    notMinedBlock.prev_hash = lastBlock.hash; //last block on the chain
+    notMinedBlock.difficulty = lastBlock.difficulty;
+    current_mining_height = notMinedBlock.height; ///////
+
+}
+
+void blockChain::notifyBlockMined()
+{
+    pthread_cond_broadcast(&block_mined_condition);
 }
