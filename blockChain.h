@@ -34,9 +34,9 @@ private:
     pthread_mutex_t mtx_lock;
     queue<BLOCK_T> blocks_queue;
     pthread_cond_t condition_variable;
-    pthread_cond_t block_mined_condition; ////
+    pthread_cond_t block_mined_condition;
     int miner_thread_id;
-    int current_mining_height; //////
+    int current_mining_height;
 
 public:
      blockChain(int difficulty);
@@ -52,7 +52,7 @@ public:
     pthread_mutex_t& getMutex();
     BLOCK_T getBlock();
     void changeNotMindBlock();
-    void notifyBlockMined(); ////
+    void notifyBlockMined();
 };
 
 #endif

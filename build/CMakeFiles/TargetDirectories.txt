@@ -1,0 +1,3 @@
+/home/rotemlahav/ex02/Linux-Threads-Excercise/build/CMakeFiles/blockchain.dir
+/home/rotemlahav/ex02/Linux-Threads-Excercise/build/CMakeFiles/edit_cache.dir
+/home/rotemlahav/ex02/Linux-Threads-Excercise/build/CMakeFiles/rebuild_cache.dir
