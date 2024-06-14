@@ -99,9 +99,6 @@ void* blockChain::minerThread(void* args)
                     block_chain->notifyBlockMined();
 
                     cout << "Miner #" << std::dec << miner_id << ": Mined a new block #" << newBlock.height << ", with the hash " << std::showbase << std::hex << newBlock.hash << endl;
-                    cout << "New block attributes: height(" << std::dec << newBlock.height << "), timestamp(" << newBlock.timeStamp
-                         << "), hash(" << std::showbase << std::hex << newBlock.hash << "), prev_hash(" << std::showbase << std::hex << newBlock.prev_hash << "), difficulty ("
-                         << std::dec << newBlock.difficulty << "), nonce (" << newBlock.nonce << ")" << endl;
 
                     // Wait for notification that a new block has been mined and added
                     pthread_cond_wait(&block_chain->block_mined_condition, &block_chain->mtx_lock);
@@ -139,20 +136,28 @@ void* blockChain::serverThread(void* args)
             block_chain->lastBlock=newBlock; //line 127
 
             sleep(1);
-            block_chain->changeNotMindBlock();
+    
+            cout << "Server: New block added by: " << std::dec << newBlock.relayed_by << " attributes: height(" << std::dec << newBlock.height << "), timestamp(" << newBlock.timeStamp
+            << "), hash(" << std::showbase << std::hex << newBlock.hash << "), prev_hash(" << std::showbase << std::hex << newBlock.prev_hash << "), difficulty ("
+            << std::dec << newBlock.difficulty << "), nonce (" << newBlock.nonce << ")" << endl;
 
+            block_chain->changeNotMindBlock();
             newBlock = block_chain->notMinedBlock;
-            
 
             block_chain->notifyMiners(); //line 140
         }
         else
         {
-            cout << "Invalid block received by miner #" << std::dec << newBlock.relayed_by << ", height(" << newBlock.height << "), hash(" 
-            << std::showbase << std::hex << newBlock.hash << "), prev_hash(" 
-            << std::showbase << std::hex << newBlock.prev_hash << ")" << endl;        
+            if(newBlock.hash != block_chain->lastBlock.hash)
+            {
+            cout << "wrong hash for block #" << newBlock.height << " by miner " << std::dec << newBlock.relayed_by << ", received " << 
+            std::showbase << std::hex << block_chain->lastBlock.hash << " but calculated " << std::showbase << std::hex << newBlock.hash << endl;
+            }
+            else if(newBlock.height != block_chain->lastBlock.height + 1)
+            {
+            cout << "wrong height for block #" << newBlock.height << " by miner " << std::dec << newBlock.relayed_by << endl;
+            }
         }
-
         pthread_mutex_unlock(&block_chain->mtx_lock);
     }
 
