@@ -1,8 +1,17 @@
 #include "blockChain.h"
+#include <cstdlib>
 
-int main()
+int main(int argc, char* argv[])
 {
-    blockChain blocks(7);
+    int difficulty = std::atoi(argv[1]); // Convert difficulty from string to int
+
+    // Check if conversion was successful
+    if (difficulty <= 0) {
+        std::cout << "Invalid difficulty value" << std::endl;
+        return 1;
+    }
+
+    blockChain blocks(difficulty);
     blocks.startMining();
 
     // Create and start the test miner thread
